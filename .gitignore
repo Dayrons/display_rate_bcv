@@ -1,0 +1,12 @@
+.vscode
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+.idea/
+logs/
+dist/
+build/
+main.spec
+*.db
