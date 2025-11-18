@@ -95,6 +95,12 @@ class DatabaseManager:
 class RateWidget:
     def __init__(self, root):
         self.root = root
+        
+        try:
+            root.tk.call('tk', 'scaling', 1.0)
+        except:
+            print("No se pudo establecer el escalado de Tkinter.")
+            pass
 
         self.db_manager = DatabaseManager()
 
@@ -116,13 +122,13 @@ class RateWidget:
         self.root.pack_propagate(False)
 
 
-        self.root.overrideredirect(True)
-        self.root.attributes("-topmost", True)
+        # self.root.overrideredirect(True)
+        # self.root.attributes("-topmost", True)
         
         self._offset_x = 0
         self._offset_y = 0
 
-        FONT_DIGITAL_GRANDE = ("Consolas", 22, "bold") 
+        FONT_DIGITAL_GRANDE = ("Consolas", 14, "bold") 
         FONT_DIGITAL_MEDIA = ("Consolas", 10)
         FONT_DIGITAL_PEQUENA = ("Consolas", 9)
         FONT_DIFERENCIA = ("Consolas", 12, "bold")
@@ -206,19 +212,19 @@ class RateWidget:
         )
         self.updated_label.pack(pady=(0, 15))
 
-        self.quit_button = tk.Button(
-            self.root, 
-            text="X", 
-            command=self.root.quit,
-            bg="#ff3333", 
-            fg="#ffffff",
-            font=("Arial", 10, "bold"),
-            width=3,
-            relief="flat"
-        )
+        # self.quit_button = tk.Button(
+        #     self.root, 
+        #     text="X", 
+        #     command=self.root.quit,
+        #     bg="#ff3333", 
+        #     fg="#ffffff",
+        #     font=("Arial", 10, "bold"),
+        #     width=3,
+        #     relief="flat"
+        # )
 
 
-        self.quit_button.place(x=300, y=10) 
+        # self.quit_button.place(x=300, y=10) 
 
         self.root.bind("<Button-1>", self.on_press)
         self.root.bind("<B1-Motion>", self.on_drag)
