@@ -97,6 +97,10 @@ class RateWidget:
         self.root = root
         
         try:
+         
+            icono_imagen = tk.PhotoImage(file='/home/user/Documentos/display_rate_bcv/assets/money.png')
+            self.root.iconphoto(False, icono_imagen)
+            print("Icono cargado con éxito usando PNG.")
             root.tk.call('tk', 'scaling', 1.0)
         except:
             print("No se pudo establecer el escalado de Tkinter.")
@@ -354,59 +358,79 @@ class RateWidget:
             
 
     def fetch_usdt_rate(self):
-        
+        endpoints = [
+            URL_BINANCE_P2P_API,
+            "https://p2p.binance.com/bapi/c2c/v1/friendly/c2c/adv/search"
+        ]
 
         payload = {
             "asset": "USDT",
             "fiat": "VES",
             "tradeType": "SELL", 
             "page": 1,
-            "rows": 10,
-            "filterType": "all" 
+            "rows": 20,
+            "filterType": "all",
+            "payTypes": [],
+            "publisherType": None
         }
 
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Content-Type': 'application/json'
+        }
+
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+        last_exception = None
+        for url in endpoints:
+            try:
+                response = requests.post(url, headers=headers, json=payload, timeout=10, verify=False)
+                response.raise_for_status()
+                data = response.json()
+
+                if 'data' not in data or not data['data']:
+                    raise ValueError(f"Respuesta sin 'data' desde {url}")
+
+                prices = []
+                for entry in data['data']:
+                    try:
+                        adv = entry.get('adv') or {}
+                        price = adv.get('price')
+                        if price is None:
+                            continue
+                        prices.append(float(price))
+                    except Exception:
+                        continue
+
+                if not prices:
+                    raise ValueError(f"No se encontraron precios válidos en {url}")
+
+                # elegir el precio más bajo (mejor oferta para quien vende USDT)
+                usdt_rate = min(prices)
+                return usdt_rate, time.strftime("%H:%M")
+
+            except RequestException as e:
+                last_exception = e
+                print(f"Error de Red USDT (API) en {url}: {e}")
+            except ValueError as e:
+                last_exception = e
+                print(f"Error de Parseo USDT (API) en {url}: {e}")
+            except Exception as e:
+                last_exception = e
+                print(f"Error Inesperado USDT (API) en {url}: {e}")
+
+        # Si fallaron ambos endpoints, como fallback aproximado usar la tasa BCV (1 USDT ≈ 1 USD)
         try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Content-Type': 'application/json'
-            }
-            
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            bcv_rate = self.db_manager.get_last_rates()[0]
+            if isinstance(bcv_rate, (int, float)) and bcv_rate > 0:
+                print("Ambos endpoints fallaron. Usando BCV como aproximación para USDT.")
+                return bcv_rate, f"FALLO: APROX BCV ({time.strftime('%H:%M')})"
+        except Exception:
+            pass
 
-            response = requests.post(
-                URL_BINANCE_P2P_API, 
-                headers=headers, 
-                json=payload, 
-                timeout=10, 
-                verify=False
-            )
-            response.raise_for_status() 
-            
-            data = response.json()
-            
-            if 'data' not in data or not data['data']:
-                raise ValueError("Respuesta de la API de Binance P2P no tiene datos ('data' vacío).")
-            
-     
-            first_ad = data['data'][0]
-            
-            if 'adv' not in first_ad or 'price' not in first_ad['adv']:
-                raise ValueError("Estructura de la respuesta de Binance P2P inesperada (falta 'adv' o 'price').")
-                
-            usdt_rate = float(first_ad['adv']['price'])
-            
-            return usdt_rate, time.strftime("%H:%M")
-
-
-        except RequestException as e:
-            print(f"Error de Red USDT (API): {e}")
-            return self.db_manager.get_last_rates()[1], f"FALLO: RED USDT API ({time.strftime('%H:%M')})"
-        except ValueError as e:
-            print(f"Error de Parseo USDT (API): {e}")
-            return self.db_manager.get_last_rates()[1], f"FALLO: PARSEO USDT API ({time.strftime('%H:%M')})"
-        except Exception as e:
-            print(f"Error Inesperado USDT (API): {e}")
-            return self.db_manager.get_last_rates()[1], f"FALLO: GEN USDT API ({time.strftime('%H:%M')})"
+        # último recurso: devolver último USDT conocido de la DB
+        print(f"Ambos endpoints fallaron y no hay BCV válido. Excepción última: {last_exception}")
+        return self.db_manager.get_last_rates()[1], f"FALLO: RED USDT API ({time.strftime('%H:%M')})"
             
 
     def fetch_all_rates(self):
