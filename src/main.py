@@ -8,6 +8,8 @@ from bs4 import BeautifulSoup
 from requests.exceptions import RequestException
 from datetime import datetime
 import json
+from pystray import Icon, Menu, MenuItem
+from PIL import Image, ImageDraw
 
 
 TARGET_HOURS = [5, 13]
@@ -95,16 +97,21 @@ class DatabaseManager:
 class RateWidget:
     def __init__(self, root):
         self.root = root
+        self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
         
         try:
-         
-            icono_imagen = tk.PhotoImage(file='/home/user/Documentos/display_rate_bcv/assets/money.png')
-            self.root.iconphoto(False, icono_imagen)
-            print("Icono cargado con éxito usando PNG.")
-            root.tk.call('tk', 'scaling', 1.0)
-        except:
-            print("No se pudo establecer el escalado de Tkinter.")
-            pass
+            # Ruta a tu imagen
+            self.icon_image = Image.open('/home/user/Documentos/display_rate_bcv/assets/coin.png')
+        except Exception as e:
+            print(f"Error cargando imagen del icono: {e}")
+            # Imagen de respaldo (un cuadrado verde) si la ruta falla
+            self.icon_image = Image.new('RGB', (64, 64), color=(0, 255, 153))
+        
+        self.tray_icon = None
+        self.tray_menu = Menu(
+            MenuItem('Mostrar ventana', self.show_window),
+            MenuItem('Salir', self.quit_app)
+        )
 
         self.db_manager = DatabaseManager()
 
@@ -156,9 +163,12 @@ class RateWidget:
             bg="#1a1a1a",
             font=FONT_DIGITAL_GRANDE,
             padx=10,
-            pady=3
+            pady=3,
+            cursor="hand2"
         )
         self.bcv_rate_label.pack(pady=3, padx=10, fill="x")
+        self.bcv_rate_label.bind("<Button-1>", self.copy_to_clipboard)
+    
 
 
         self.usdt_title_label = tk.Label(
@@ -168,7 +178,7 @@ class RateWidget:
             bg="#1a1a1a", 
             font=FONT_DIGITAL_MEDIA,
             padx=10, 
-            anchor="w" 
+            anchor="w"
         )
         self.usdt_title_label.pack(pady=(15, 0), fill="x") 
 
@@ -179,9 +189,11 @@ class RateWidget:
             bg="#1a1a1a",
             font=FONT_DIGITAL_GRANDE,
             padx=10, 
-            pady=3
+            pady=3,
+            cursor="hand2"
         )
         self.usdt_rate_label.pack(pady=3, padx=10, fill="x")
+        self.usdt_rate_label.bind("<Button-1>", self.copy_to_clipboard)
 
         self.diff_title_label = tk.Label(
             self.root, 
@@ -499,6 +511,68 @@ class RateWidget:
         x = self.root.winfo_pointerx() - self._offset_x
         y = self.root.winfo_pointery() - self._offset_y
         self.root.geometry(f"+{x}+{y}")
+    
+    def create_tray_icon_image(self):
+        # Intenta usar tu archivo money.png para el icono del panel
+        try:
+            image = Image.open('/home/user/Documentos/display_rate_bcv/assets/money.png')
+        except:
+            # Si falla, crea un cuadro simple por defecto
+            image = Image.new('RGB', (64, 64), color=(0, 255, 153))
+        return image
+
+    def hide_window(self):
+        # 1. Primero configuramos el menú y el icono
+        menu_options = Menu(
+            MenuItem('Mostrar ventana', self.show_window, default=True),
+            MenuItem('Salir completamente', self.quit_app)
+        )
+        
+        # 2. Creamos el icono
+        self.tray_icon = Icon(
+            "tasa_app", 
+            self.icon_image, 
+            title="Tasa BCV & USDT", 
+            menu=menu_options
+        )
+        
+        # 3. Ocultamos la ventana de Tkinter
+        self.root.withdraw()
+        
+        # 4. Lanzamos el icono en un hilo independiente
+        # Usamos un pequeño delay para asegurar que Tkinter procesó el withdraw
+        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+    def show_window(self, icon, item):
+        # Si venimos del clic del menú, 'icon' no será None
+        if icon:
+            icon.stop()
+        
+        # Forzar a Tkinter a mostrarse y ponerse al frente
+        self.root.after(0, self.root.deiconify)
+        self.root.after(10, self.root.lift)
+        self.root.after(20, lambda: self.root.attributes('-topmost', True))
+        self.root.after(30, lambda: self.root.attributes('-topmost', False))
+
+    def quit_app(self, icon, item):
+        icon.stop()
+        self.root.after(0, self.root.destroy)
+    
+    def copy_to_clipboard(self, event):
+        # Obtener el widget que recibió el clic
+        label = event.widget
+        monto = label.cget("text")
+        
+        # Limpiar portapapeles y añadir el monto
+        self.root.clipboard_clear()
+        self.root.clipboard_append(monto)
+        
+        # Feedback visual rápido (cambia de color y vuelve al original)
+        original_color = label.cget("fg")
+        label.config(fg="#ffffff")
+        self.root.after(200, lambda: label.config(fg=original_color))
+        
+        print(f"Copiado al portapapeles: {monto}")
 
 
 if __name__ == "__main__":
