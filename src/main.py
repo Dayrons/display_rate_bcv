@@ -559,20 +559,15 @@ class RateWidget:
         self.root.after(0, self.root.destroy)
     
     def copy_to_clipboard(self, event):
-        # Obtener el widget que recibió el clic
         label = event.widget
         monto = label.cget("text")
-        
-        # Limpiar portapapeles y añadir el monto
+
         self.root.clipboard_clear()
         self.root.clipboard_append(monto)
-        
-        # Feedback visual rápido (cambia de color y vuelve al original)
+
         original_color = label.cget("fg")
         label.config(fg="#ffffff")
         self.root.after(200, lambda: label.config(fg=original_color))
-        
-        print(f"Copiado al portapapeles: {monto}")
 
 
 if __name__ == "__main__":
